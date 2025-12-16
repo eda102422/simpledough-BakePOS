@@ -1,6 +1,7 @@
 import React, { useRef } from 'react';
 import { X, Download, Printer } from 'lucide-react';
 import html2pdf from 'html2pdf.js';
+import OrderItemReviews from './OrderItemReviews';
 
 const ReceiptModal = ({ order, onClose }) => {
   const receiptRef = useRef(null);
@@ -141,6 +142,14 @@ const ReceiptModal = ({ order, onClose }) => {
             <p>Thank you for your order!</p>
             <p>Please keep this receipt for your records.</p>
           </div>
+
+          {/* Reviews mode: when modal opened from Order History to leave reviews */}
+          {order && order._showReviews && (
+            <div className="mt-4 p-4 bg-white border-t">
+              <h3 className="text-lg font-bold text-gray-900 mb-3">Leave Reviews for This Order</h3>
+              <OrderItemReviews order={order} />
+            </div>
+          )}
         </div>
 
         {/* Actions */}

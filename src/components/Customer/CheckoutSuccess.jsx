@@ -3,6 +3,8 @@ import { CheckCircle, Package, Clock, MapPin, Phone, ArrowLeft } from 'lucide-re
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import ReceiptModal from './ReceiptModal';
+import { supabase } from '../../lib/supabaseClient';
+import OrderItemReviews from './OrderItemReviews';
 
 const CheckoutSuccess = ({ order, onClose }) => {
   const [showConfetti, setShowConfetti] = useState(true);
@@ -235,7 +237,7 @@ export default CheckoutSuccess;
 // Helper component to handle per-item reviews on the success page
 const OrderItemReviews = ({ order }) => {
   const { user } = useAuth();
-  const [allReviews, setAllReviews] = useState(() => JSON.parse(localStorage.getItem('simple-dough-reviews') || '[]'));
+  const [allReviews, setAllReviews] = useState([]);
   const [inputs, setInputs] = useState(() => {
     const map = {};
     (order.items || []).forEach(item => {
@@ -245,27 +247,84 @@ const OrderItemReviews = ({ order }) => {
     return map;
   });
 
+  useEffect(() => {
+    let mounted = true;
+    const load = async () => {
+      // Try Supabase first
+      try {
+        if (supabase) {
+          const { data, error } = await supabase
+            .from('reviews')
+            .select('*')
+            .or(`order_id.eq.${order.id},order_id.is.null`)
+            .order('created_at', { ascending: false });
+          if (!error && mounted) {
+            setAllReviews(data || []);
+            return;
+          }
+        }
+      } catch (e) {
+        // ignore and fallback to localStorage
+      }
+
+      // Fallback: localStorage
+      const local = JSON.parse(localStorage.getItem('simple-dough-reviews') || '[]');
+      if (mounted) setAllReviews(local);
+    };
+    load();
+    return () => { mounted = false };
+  }, [order.id]);
+
   const hasReviewed = (productId) => {
-    return allReviews.some(r => String(r.productId) === String(productId) && r.orderId === order.id && (r.userId === user?.id || r.userId === null));
+    return allReviews.some(r => String(r.product_id || r.productId) === String(productId) && (r.order_id === order.id || r.orderId === order.id) && (r.user_id === user?.id || r.userId === null));
   };
 
-  const submitReview = (productId) => {
+  const submitReview = async (productId) => {
     const input = inputs[productId] || { rating: 5, comment: '' };
-    const newReview = {
-      id: Date.now().toString(),
-      productId: productId,
-      orderId: order.id,
-      userId: user?.id || null,
+    const payload = {
+      product_id: productId,
+      order_id: order.id,
+      user_id: user?.id || null,
       name: user?.name || 'Anonymous',
       rating: Number(input.rating),
       comment: (input.comment || '').trim(),
-      createdAt: new Date().toISOString()
+      created_at: new Date().toISOString()
+    };
+
+    // Try to save to Supabase
+    try {
+      if (supabase) {
+        const { data, error } = await supabase.from('reviews').insert(payload).select().single();
+        if (error) throw error;
+        const updated = [data, ...allReviews];
+        setAllReviews(updated);
+        alert('Thanks — your review was saved.');
+        return;
+      }
+    } catch (e) {
+      console.error('Supabase save failed, falling back to localStorage', e.message || e);
+    }
+
+    // Fallback: save to localStorage
+    const newReview = {
+      id: Date.now().toString(),
+      productId: productId,
+      product_id: productId,
+      orderId: order.id,
+      order_id: order.id,
+      userId: user?.id || null,
+      user_id: user?.id || null,
+      name: user?.name || 'Anonymous',
+      rating: Number(input.rating),
+      comment: (input.comment || '').trim(),
+      createdAt: new Date().toISOString(),
+      created_at: new Date().toISOString()
     };
 
     const updated = [newReview, ...allReviews];
     localStorage.setItem('simple-dough-reviews', JSON.stringify(updated));
     setAllReviews(updated);
-    alert('Thanks — your review was saved.');
+    alert('Thanks — your review was saved (offline).');
   };
 
   const setField = (productId, field, value) => {

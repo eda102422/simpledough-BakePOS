@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, Heart, Info } from 'lucide-react';
+import { supabase } from '../../lib/supabaseClient';
 import { useCart } from '../../context/CartContext';
 import { useInventory } from '../../context/InventoryContext';
 import ProductModal from './ProductModal';
@@ -15,12 +16,44 @@ const ProductCard = ({ product }) => {
   const [reviewCount, setReviewCount] = useState(0);
 
   useEffect(() => {
-    const reviews = JSON.parse(localStorage.getItem('simple-dough-reviews') || '[]');
-    const productReviews = reviews.filter(r => r.productId === product.id.toString() || r.productId === product.id);
-    const count = productReviews.length;
-    const avg = count > 0 ? (productReviews.reduce((s, r) => s + (r.rating || 0), 0) / count) : 0;
-    setAvgRating(Number(avg.toFixed(1)));
-    setReviewCount(count);
+    let mounted = true;
+
+    const loadFromLocal = () => {
+      const reviews = JSON.parse(localStorage.getItem('simple-dough-reviews') || '[]');
+      const productReviews = reviews.filter(r => String(r.productId) === String(product.id) || String(r.product_id) === String(product.id));
+      const count = productReviews.length;
+      const avg = count > 0 ? (productReviews.reduce((s, r) => s + (Number(r.rating) || 0), 0) / count) : 0;
+      if (!mounted) return;
+      setAvgRating(Number(avg.toFixed(1)));
+      setReviewCount(count);
+    };
+
+    const loadFromSupabase = async () => {
+      try {
+        if (!supabase) throw new Error('no supabase');
+        const productId = String(product.id);
+        const { data, error, count } = await supabase
+          .from('reviews')
+          .select('rating', { count: 'exact' })
+          .eq('product_id', productId);
+        if (error) throw error;
+        if (data && mounted) {
+          const c = count || data.length;
+          const avg = c > 0 ? (data.reduce((s, r) => s + (Number(r.rating) || 0), 0) / c) : 0;
+          setAvgRating(Number(avg.toFixed(1)));
+          setReviewCount(c);
+          return;
+        }
+      } catch (e) {
+        // fallback to localStorage
+        loadFromLocal();
+      }
+    };
+
+    // attempt Supabase then fallback
+    loadFromSupabase();
+
+    return () => { mounted = false };
   }, [product.id]);
 
   const stock = getProductStock(product.id);

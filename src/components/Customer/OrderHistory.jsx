@@ -228,7 +228,7 @@ const OrderHistory = () => {
                 ))}
               </div>
 
-              <div className="border-t mt-4 pt-3 flex justify-between items-center">
+                <div className="border-t mt-4 pt-3 flex justify-between items-center">
                 <span className="text-lg font-semibold text-amber-600">Total: ₱{order.total}</span>
                 <div className="flex items-center gap-2">
                   <button
@@ -238,6 +238,18 @@ const OrderHistory = () => {
                     <Download className="w-4 h-4" />
                     Receipt
                   </button>
+                  {/* Allow leaving review for completed/delivered orders only */}
+                  {order.status === 'delivered' && (
+                    <button
+                      onClick={() => {
+                        // open a lightweight modal to leave reviews — reuse the ReceiptModal to host reviews
+                        setReceiptOrder({ ...order, _showReviews: true });
+                      }}
+                      className="px-3 py-1 bg-green-100 text-green-800 rounded-lg hover:bg-green-200 transition-colors flex items-center gap-1 text-sm font-medium"
+                    >
+                      Leave Review
+                    </button>
+                  )}
                   <span className={`px-3 py-1 rounded-full text-sm font-medium ${
                     order.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
                     order.status === 'preparing' ? 'bg-blue-100 text-blue-800' :

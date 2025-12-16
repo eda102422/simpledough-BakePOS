@@ -13,6 +13,7 @@ import { PRODUCTS } from "../../data/products";
 import InventoryManagement from "./InventoryManagement";
 import OrderManagement from "./OrderManagement";
 import Reports from "./Reports";
+import Reviews from "./Reviews";
 import { DashboardTabs } from "../../components/Layout/DashboardTabs";
 
 const Dashboard = () => {
@@ -294,6 +295,9 @@ const Dashboard = () => {
 
       {/* Reports */}
       {activeTab === "reports" && <Reports />}
+
+      {/* Reviews */}
+      {activeTab === "reviews" && <Reviews />}
     </div>
   );
 };

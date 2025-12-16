@@ -1,6 +1,6 @@
 // src/components/Layout/DashboardTabs.jsx
 import React from "react";
-import { BarChart3, Package, ShoppingCart, TrendingUp } from "lucide-react";
+import { BarChart3, Package, ShoppingCart, TrendingUp, MessageSquare } from "lucide-react";
 
 export const DashboardTabs = ({ activeTab, setActiveTab }) => {
   const tabs = [
@@ -8,6 +8,7 @@ export const DashboardTabs = ({ activeTab, setActiveTab }) => {
     { id: "inventory", name: "Manage Inventory", icon: Package },
     { id: "orders", name: "View All Orders", icon: ShoppingCart },
     { id: "reports", name: "Generate Reports", icon: TrendingUp },
+    { id: "reviews", name: "Reviews", icon: MessageSquare },
   ];
 
   return (
