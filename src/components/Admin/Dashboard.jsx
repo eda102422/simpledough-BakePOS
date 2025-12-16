@@ -1,4 +1,3 @@
-// src/Admin/Dashboard.jsx
 import React, { useState, useEffect } from "react";
 import {
   BarChart3,
@@ -13,8 +12,9 @@ import { PRODUCTS } from "../../data/products";
 import InventoryManagement from "./InventoryManagement";
 import OrderManagement from "./OrderManagement";
 import Reports from "./Reports";
-import Reviews from "./Reviews";
 import { DashboardTabs } from "../../components/Layout/DashboardTabs";
+import { supabase } from '../../lib/supabaseClient'; // add Supabase import
+
 
 const Dashboard = () => {
   const { inventory, getLowStockProducts } = useInventory();
@@ -27,48 +27,122 @@ const Dashboard = () => {
     avgOrderValue: 0,
   });
 
+
   useEffect(() => {
-    // Load orders from localStorage (demo purposes)
-    const savedOrders = JSON.parse(
-      localStorage.getItem("simple-dough-orders") || "[]"
-    );
-    setOrders(savedOrders);
+    // Fetch orders from Supabase and map them to the app shape
+    let mounted = true;
+    const fetchOrders = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('orders')
+          .select(`
+            *,
+            order_items (
+              *,
+              products (id, name)
+            )
+          `)
+          .order('created_at', { ascending: false });
 
-    // Calculate stats
-    const today = new Date().toDateString();
-    const todayOrders = savedOrders.filter(
-      (order) => new Date(order.createdAt).toDateString() === today
-    );
 
-    const todayRevenue = todayOrders.reduce(
-      (sum, order) => sum + order.total,
-      0
+        if (error) {
+          console.error('Error fetching orders for dashboard:', error);
+          setOrders([]);
+          return;
+        }
+
+
+        const mapped = (data || []).map(order => ({
+          id: order.id,
+          customerId: order.customer_id,
+          createdAt: order.created_at,
+          status: order.status,
+          total: Number(order.total_amount || 0),
+          paymentMethod: order.payment_method || 'unknown',
+          items: (order.order_items || []).map(item => ({
+            id: item.id,
+            quantity: item.quantity,
+            totalPrice: Number(item.price || 0),
+            product: {
+              id: item.products?.id,
+              name: item.products?.name || 'Unknown'
+            }
+          }))
+        }));
+
+
+        if (mounted) setOrders(mapped);
+      } catch (err) {
+        console.error('Unexpected error loading dashboard orders:', err);
+        if (mounted) setOrders([]);
+      }
+    };
+
+
+    fetchOrders();
+    return () => { mounted = false; };
+  }, []);
+
+
+  // Recompute stats whenever orders change
+  useEffect(() => {
+    const today = new Date();
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+   
+    const todayString = today.toDateString();
+    const yesterdayString = yesterday.toDateString();
+
+
+    // Today's stats
+    const todayOrders = orders.filter(
+      (order) => new Date(order.createdAt).toDateString() === todayString
     );
-    const avgOrderValue =
-      todayOrders.length > 0 ? todayRevenue / todayOrders.length : 0;
+    const todayRevenue = todayOrders.reduce((sum, order) => sum + (order.total || 0), 0);
+    const todayAvg = todayOrders.length > 0 ? todayRevenue / todayOrders.length : 0;
+
+
+    // Yesterday's stats for comparison
+    const yesterdayOrders = orders.filter(
+      (order) => new Date(order.createdAt).toDateString() === yesterdayString
+    );
+    const yesterdayRevenue = yesterdayOrders.reduce((sum, order) => sum + (order.total || 0), 0);
+
+
+    // Calculate percentage changes
+    const ordersChange = yesterdayOrders.length > 0
+      ? Math.round(((todayOrders.length - yesterdayOrders.length) / yesterdayOrders.length) * 100)
+      : 0;
+    const revenueChange = yesterdayRevenue > 0
+      ? Math.round(((todayRevenue - yesterdayRevenue) / yesterdayRevenue) * 100)
+      : 0;
+
 
     setStats({
       todayOrders: todayOrders.length,
       todayRevenue,
-      totalCustomers: new Set(savedOrders.map((order) => order.customerId))
-        .size,
-      avgOrderValue,
+      totalCustomers: new Set(orders.map((order) => order.customerId)).size,
+      avgOrderValue: todayAvg,
+      ordersChange,
+      revenueChange,
     });
-  }, []);
+  }, [orders]);
+
 
   const lowStockProducts = getLowStockProducts();
 
+
   // ✅ Fixed StatCard spacing and typography
   const StatCard = ({ title, value, icon: Icon, color, change }) => (
-    <div className="bg-white rounded-lg sm:rounded-xl shadow-lg p-4 sm:p-6 hover:shadow-xl transition-shadow duration-200">
-      <div className="flex items-center justify-between gap-4">
+    <div className="bg-white rounded-xl shadow-lg p-6 hover:shadow-xl transition-shadow duration-200">
+      <div className="flex items-center justify-between">
         {/* Force column layout + consistent vertical gaps */}
-        <div className="flex flex-col justify-center space-y-1 sm:space-y-2">
-          <p className="text-xs sm:text-sm font-medium text-gray-600">{title}</p>
-          <p className="text-2xl sm:text-3xl font-bold text-gray-900 leading-tight">{value}</p>
+        <div className="flex flex-col justify-center space-y-2">
+          <p className="text-sm font-medium text-gray-600">{title}</p>
+          <p className="text-3xl font-bold text-gray-900 leading-tight">{value}</p>
           {change !== undefined && (
             <p
-              className={`text-xs sm:text-sm ${
+              className={`text-sm ${
                 change >= 0 ? "text-green-600" : "text-red-600"
               }`}
             >
@@ -78,47 +152,50 @@ const Dashboard = () => {
           )}
         </div>
         <div
-          className={`w-10 h-10 sm:w-12 sm:h-12 ${color} rounded-full flex items-center justify-center flex-shrink-0`}
+          className={`w-12 h-12 ${color} rounded-full flex items-center justify-center`}
         >
-          <Icon className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
+          <Icon className="w-6 h-6 text-white" />
         </div>
       </div>
     </div>
   );
 
+
   return (
-    <div className="max-w-7xl mx-auto px-3 sm:px-4 py-4 sm:py-8">
+    <div className="max-w-7xl mx-auto px-4 py-8">
       {/* Tabs Navigation */}
       <DashboardTabs activeTab={activeTab} setActiveTab={setActiveTab} />
+
 
       {/* Dashboard Section */}
       {activeTab === "dashboard" && (
         <>
           {/* Header with added top margin */}
-          <div className="mb-6 sm:mb-8 mt-4 sm:mt-8">
-            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-1 sm:mb-2">
+          <div className="mb-8 mt-8">
+            <h1 className="text-3xl font-bold text-gray-900 mb-2">
               Admin Dashboard
             </h1>
-            <p className="text-sm sm:text-base text-gray-600">
+            <p className="text-gray-600">
               Welcome back! Here's what's happening with your donut business.
             </p>
           </div>
 
+
           {/* Stats Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6 mb-6 sm:mb-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
             <StatCard
               title="Today's Orders"
               value={stats.todayOrders}
               icon={ShoppingCart}
               color="bg-gradient-to-br from-blue-500 to-blue-600"
-              change={12}
+              change={stats.ordersChange}
             />
             <StatCard
               title="Today's Revenue"
               value={`₱${stats.todayRevenue}`}
               icon={TrendingUp}
               color="bg-gradient-to-br from-green-500 to-green-600"
-              change={8}
+              change={stats.revenueChange}
             />
             <StatCard
               title="Total Customers"
@@ -135,6 +212,7 @@ const Dashboard = () => {
               change={-3}
             />
           </div>
+
 
           {/* Orders & Inventory Alerts */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
@@ -170,6 +248,7 @@ const Dashboard = () => {
                         }
                       };
 
+
                       return (
                         <div
                           key={order.id}
@@ -204,6 +283,7 @@ const Dashboard = () => {
                 )}
               </div>
             </div>
+
 
             {/* Inventory Alerts */}
             <div className="bg-white rounded-xl shadow-lg p-6">
@@ -255,6 +335,7 @@ const Dashboard = () => {
             </div>
           </div>
 
+
           {/* Quick Actions */}
           <div className="mt-8 bg-white rounded-xl shadow-lg p-6">
             <h3 className="text-xl font-bold text-gray-900 mb-4">
@@ -287,19 +368,23 @@ const Dashboard = () => {
         </>
       )}
 
+
       {/* Inventory Management */}
       {activeTab === "inventory" && <InventoryManagement />}
+
 
       {/* Orders */}
       {activeTab === "orders" && <OrderManagement />}
 
+
       {/* Reports */}
       {activeTab === "reports" && <Reports />}
-
-      {/* Reviews */}
-      {activeTab === "reviews" && <Reviews />}
     </div>
   );
 };
 
+
 export default Dashboard;
+
+
+

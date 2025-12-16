@@ -80,15 +80,6 @@ const ReceiptModal = ({ order, onClose }) => {
             </div>
           </div>
 
-          {/* Customer Info */}
-          <div className="bg-gray-50 p-3 sm:p-4 rounded-lg text-xs sm:text-sm">
-            <h3 className="font-semibold text-gray-900 mb-2">Customer Information</h3>
-            <div className="space-y-1 text-gray-700">
-              <p className="break-words"><span className="font-medium">Phone:</span> {order.phone || 'N/A'}</p>
-              <p className="break-words"><span className="font-medium">Address:</span> {(order.delivery_address || order.deliveryAddress || 'Store Pickup')}</p>
-            </div>
-          </div>
-
           {/* Items */}
           <div>
             <h3 className="font-semibold text-gray-900 mb-2 sm:mb-3 text-sm sm:text-base">Items Ordered</h3>
