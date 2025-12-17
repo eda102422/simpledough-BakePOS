@@ -30,7 +30,7 @@ const Header = () => {
           </Link>
 
           {/* Navigation */}
-          <nav className="hidden md:flex items-center space-x-8">
+         <nav className="flex items-center space-x-4">
             <Link to="/" className="text-gray-700 hover:text-amber-600 font-medium transition-colors">
               Home
             </Link>
